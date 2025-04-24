@@ -1,35 +1,59 @@
-from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .models import DetectedUser, GenderCount
-import json
+from django.http import JsonResponse
+from .models import DetectedUser, GenderCount, Counter
 
 @csrf_exempt
 def save_detected_user(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        user_id = data.get('user_id')
-        gender = data.get('gender')
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method"}, status=405)
 
-        if user_id and gender:
-            # Save or update the detected user
-            DetectedUser.objects.update_or_create(user_id=user_id, defaults={'gender': gender})
+    gender = request.POST.get("gender")
+    image  = request.FILES.get("image")
 
-            # Update gender count
-            gender_obj, created = GenderCount.objects.get_or_create(gender=gender)
-            gender_obj.count += 1
-            gender_obj.save()
+    if not gender:
+        return JsonResponse({"error": "Gender is required"}, status=400)
 
-            return JsonResponse({'message': 'User data saved successfully'}, status=201)
+    user = DetectedUser.objects.create(gender=gender, image=image)
 
-        return JsonResponse({'error': 'Invalid data'}, status=400)
+    gender_obj, _ = GenderCount.objects.get_or_create(gender=gender)
+    gender_obj.count = DetectedUser.objects.filter(gender=gender).count()
+    gender_obj.save()
 
-    return JsonResponse({'error': 'Invalid request'}, status=405)
+    return JsonResponse({"message": "Saved", "user_id": user.id}, status=201)
 
-def get_gender_count(request):
-    male_count = GenderCount.objects.filter(gender="Male").first()
-    female_count = GenderCount.objects.filter(gender="Female").first()
+
+    # Create user with the new ID
+    DetectedUser.objects.create(
+        user_id=counter.last_user_id,
+        gender=gender,
+        image=image
+    )
+
+    # Update gender count
+    gender_obj, _ = GenderCount.objects.get_or_create(gender=gender)
+    gender_obj.count += 1
+    gender_obj.save()
 
     return JsonResponse({
-        'Male': male_count.count if male_count else 0,
-        'Female': female_count.count if female_count else 0
+        "message": "User data saved successfully",
+        "user_id": counter.last_user_id
+    }, status=201)
+
+def get_gender_count(request):
+    male = GenderCount.objects.filter(gender="Male").first()
+    female = GenderCount.objects.filter(gender="Female").first()
+
+    return JsonResponse({
+        "Male": male.count if male else 0,
+        "Female": female.count if female else 0,
+    })
+
+@csrf_exempt
+def get_last_user_id(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "Invalid request"}, status=405)
+    
+    counter = Counter.objects.first()
+    return JsonResponse({
+        "last_user_id": counter.last_user_id if counter else 0
     })

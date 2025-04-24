@@ -16,9 +16,17 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from .views import admin_dashboard, chart_data
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('gender/', include("gender.urls")),
     path('api/', include("face_recognition_app.urls")),
+    path('custom-admin/', admin_dashboard, name='custom-admin'),
+    path('chart-data/', chart_data, name='chart-data'),
 ]
+
+if settings.DEBUG:            # serve only when debug = True
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
